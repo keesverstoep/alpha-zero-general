@@ -1,11 +1,16 @@
-from collections import deque
+# from collections import deque
 from Arena import Arena
 from MCTS import MCTS
 import numpy as np
 from pytorch_classification.utils import Bar, AverageMeter
 import time, os, sys
-from pickle import Pickler, Unpickler
+# from pickle import Pickler, Unpickler
+# instead use json for readability and compatibility with other frameworks
+import json
 from random import shuffle
+import sys
+# temp hack:
+from awari.AwariLogic import Board
 
 
 class Coach():
@@ -43,22 +48,47 @@ class Coach():
         self.curPlayer = 1
         episodeStep = 0
 
+        moves = 0
+        max_moves = self.mcts.MAX_TREE_DEPTH
         while True:
             episodeStep += 1
             canonicalBoard = self.game.getCanonicalForm(board,self.curPlayer)
+            # TODO: look carefully into good settings for tempThreshold. Game dependent!
+            # Don't want to be stuck in a loop at lower levels.
             temp = int(episodeStep < self.args.tempThreshold)
 
             pi = self.mcts.getActionProb(canonicalBoard, temp=temp)
             sym = self.game.getSymmetries(canonicalBoard, pi)
             for b,p in sym:
-                trainExamples.append([b, self.curPlayer, p, None])
+                trainExamples.append([b.tolist(), self.curPlayer, p, None])
 
             action = np.random.choice(len(pi), p=pi)
+            prevboard = board
+            prevplayer = self.curPlayer
             board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
 
             r = self.game.getGameEnded(board, self.curPlayer)
+            moves += 1
+            if moves > max_moves:
+                r = 1e-4
 
             if r!=0:
+                # also add final move that finished the game
+                if 1:  # r == 1 or r == -1 or r == 1e-4:
+                    canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
+                    b = Board(6)
+                    b.pieces = np.copy(canonicalBoard)
+                    # also add a (fake but legal) pi for the final move; but don't do MCTS for this
+                    moves = b.get_legal_moves(self.curPlayer)
+                    if len(moves) > 0:
+                        # print('board: ' + str(b.pieces) + ' canonicalBoard: ' + str(canonicalBoard) + ' legal moves: ' + str(moves))
+                        pi = [0, 0, 0, 0, 0, 0, 0]
+                        for i in moves:
+                            pi[i] = 1/len(moves)
+                    else:
+                        pi = [0, 0, 0, 0, 0, 0, 1]
+                    # trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
+                    trainExamples.append([canonicalBoard.tolist(), self.curPlayer, pi, None])
                 return [(x[0],x[2],r*((-1)**(x[1]!=self.curPlayer))) for x in trainExamples]
 
     def learn(self):
@@ -75,7 +105,9 @@ class Coach():
             print('------ITER ' + str(i) + '------')
             # examples of the iteration
             if not self.skipFirstSelfPlay or i>1:
-                iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+                # iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+                # Regular list so it it json serializable
+                iterationTrainExamples = []
     
                 eps_time = AverageMeter()
                 bar = Bar('Self Play', max=self.args.numEps)
@@ -103,7 +135,7 @@ class Coach():
             # NB! the examples were collected using the model from the previous iteration, so (i-1)  
             self.saveTrainExamples(i-1)
             
-            # shuffle examples before training
+            # shuffle examlpes before training
             trainExamples = []
             for e in self.trainExamplesHistory:
                 trainExamples.extend(e)
@@ -139,8 +171,10 @@ class Coach():
         if not os.path.exists(folder):
             os.makedirs(folder)
         filename = os.path.join(folder, self.getCheckpointFile(iteration)+".examples")
-        with open(filename, "wb+") as f:
-            Pickler(f).dump(self.trainExamplesHistory)
+        # with open(filename, "wb+") as f:
+        #     Pickler(f).dump(self.trainExamplesHistory)
+        with open(filename, "w+", encoding="utf8") as f:
+            json.dump(self.trainExamplesHistory, f)
         f.closed
 
     def loadTrainExamples(self):
@@ -153,8 +187,23 @@ class Coach():
                 sys.exit()
         else:
             print("File with trainExamples found. Read it.")
-            with open(examplesFile, "rb") as f:
-                self.trainExamplesHistory = Unpickler(f).load()
+            # with open(examplesFile, "rb") as f:
+            #     self.trainExamplesHistory = Unpickler(f).load()
+            with open(examplesFile, "r", encoding="utf8") as f:
+                self.trainExamplesHistory = json.load(f)
+                # for export of game info to the other alpha-zero implementations
+                if 0:
+                   elist = self.trainExamplesHistory[0]
+                   print('train: [')
+                   for e in elist:
+                       board, pi, val = e
+                       # print('train: board ' + str(board[0]) + " pi " + str(pi) + " val " + str(val))
+                       strboard = ""
+                       for i in board[0]:
+                           strboard += "%d:" % i
+                       print('train: ' + str([str(strboard), pi, val]) + ",")
+                   print('train: ]')
+                   sys.exit()
             f.closed
             # examples based on the model were already collected (loaded)
             self.skipFirstSelfPlay = True

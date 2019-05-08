@@ -1,4 +1,5 @@
 import math
+import sys
 import numpy as np
 EPS = 1e-8
 
@@ -18,6 +19,8 @@ class MCTS():
 
         self.Es = {}        # stores game.getGameEnded ended for board s
         self.Vs = {}        # stores game.getValidMoves for board s
+        # required for Awari?
+        self.MAX_TREE_DEPTH = 300
 
     def getActionProb(self, canonicalBoard, temp=1):
         """
@@ -45,7 +48,7 @@ class MCTS():
         return probs
 
 
-    def search(self, canonicalBoard):
+    def search(self, canonicalBoard, depth = 0):
         """
         This function performs one iteration of MCTS. It is recursively called
         till a leaf node is found. The action chosen at each node is one that
@@ -66,11 +69,31 @@ class MCTS():
         """
 
         s = self.game.stringRepresentation(canonicalBoard)
+        # debug = True
+        debug = False
+        # if debug: print(s)
+
+        # MiniChess:
+        if depth >= self.MAX_TREE_DEPTH:
+            self.Es[s] = 1e-4  # Assume draw state or loop state as failure
+            if debug: print('maxdepth %s: %f' % (s, -self.Es[s]))
+            return -self.Es[s]
+
+        if debug:
+            moves = self.game.getValidMovesList(canonicalBoard, 1)
+            print('search: board: ', end="")
+            # displayPlayer(canonicalBoard, 1)
+            print('depth %d moves:' % depth)
+            for (id, p, x, y) in moves:
+                print("move %d: %s from %s to %s" % (id, p, x, y))
 
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
-        if self.Es[s]!=0:
+        # if self.Es[s]!=0:
+        # Work around draw move choice assumed final value
+        if self.Es[s]!=0 and not (abs(self.Es[s]) < 1e-3):
             # terminal node
+            if debug: print('terminal %s: %f' % (s, -self.Es[s]))
             return -self.Es[s]
 
         if s not in self.Ps:
@@ -92,9 +115,11 @@ class MCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
+            if debug: print('leaf: %s: %f' % (s, -v))
             return -v
 
         valids = self.Vs[s]
+        # if debug: print('valids: %s' % str(valids))
         cur_best = -float('inf')
         best_act = -1
 
@@ -106,15 +131,17 @@ class MCTS():
                 else:
                     u = self.args.cpuct*self.Ps[s][a]*math.sqrt(self.Ns[s] + EPS)     # Q = 0 ?
 
+                if debug: print('move %d val %f' % (a, u))
                 if u > cur_best:
                     cur_best = u
                     best_act = a
 
         a = best_act
+        if debug: print('best move: %d' % a)
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        v = self.search(next_s, depth + 1)
 
         if (s,a) in self.Qsa:
             self.Qsa[(s,a)] = (self.Nsa[(s,a)]*self.Qsa[(s,a)] + v)/(self.Nsa[(s,a)]+1)
@@ -125,4 +152,5 @@ class MCTS():
             self.Nsa[(s,a)] = 1
 
         self.Ns[s] += 1
+        if debug: print('done, Ns[s] %d, return %f' % (self.Ns[s], -v))
         return -v
