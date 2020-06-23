@@ -19,6 +19,8 @@ game_verbose = 0
 class AwariGame(Game):
     def __init__(self, n=6):
         self.n = n
+        # self.nplanes = 9
+        self.nplanes = 1
 
     def getInitBoard(self):
         # return initial board (numpy board)
@@ -32,12 +34,14 @@ class AwariGame(Game):
         # For NNet integration we transform the board into an image stack
         # which highlights some useful structural information which would
         # be hard to be derived independently.  AlphagoZero does this too.
-        return (6, 6, 9)
+        # return (6, 6, 9)
+        return (6, 6, self.nplanes)
 
     def getImageStackSize(self):
         """ Returns size of image stack that is used as input to NNet
         """
-        return 9
+        # return 9
+        return self.nplanes
 
     def getImageStack(self, board):
         """ Returns input stack for the given board
@@ -47,7 +51,11 @@ class AwariGame(Game):
 
         # 2D version for better compatibility, also circular sowing
         # NOTE: channels last for compatibility with other games
-        main_planes = np.zeros(shape=(6, 6, 9))
+        # ORIG:
+        # nplanes = 9
+        nplanes = self.nplanes
+        # main_planes = np.zeros(shape=(6, 6, 9))
+        main_planes = np.zeros(shape=(6, 6, nplanes))
         # main images
         #
         # 3 | 10  9  8  7
@@ -69,22 +77,28 @@ class AwariGame(Game):
             j = ind_y[pit]
             if j <= 2:
                 if (j == 1 and i >= 1 and i <= 4) or (j == 2 and (i == 1 or i == 4)):
-                    main_planes[i][j][1] = board[0][pit]
-                    main_planes[i][j][3] = 1
-                    main_planes[i][j][5] = (board[0][pit] < 3)
-                    if player_white:
+                    if nplanes > 1:
+                        main_planes[i][j][1] = board[0][pit]
+                        main_planes[i][j][3] = 1
+                        main_planes[i][j][5] = (board[0][pit] < 3)
+                    if player_white or nplanes == 1:
                         main_planes[i][j][0] = 1
             else:
                 if (j == 4 and i >= 1 and i <= 4) or (j == 3 and (i == 1 or i == 4)):
-                    main_planes[i][j][2] = board[0][pit]
-                    main_planes[i][j][4] = 1
-                    main_planes[i][j][6] = (board[0][pit] < 3)
-                    if not player_white:
+                    if nplanes > 1:
+                        main_planes[i][j][2] = board[0][pit]
+                        main_planes[i][j][4] = 1
+                        main_planes[i][j][6] = (board[0][pit] < 3)
+                    if not player_white or nplanes == 1:
                         main_planes[i][j][0] = 1
 
         # add own pits
-        main_planes[5][1][7] = board[0][Board.pit_captured_self]
-        main_planes[0][2][8] = board[0][Board.pit_captured_other]
+        if nplanes > 1:
+            main_planes[5][1][7] = board[0][Board.pit_captured_self]
+            main_planes[0][2][8] = board[0][Board.pit_captured_other]
+        else:
+            main_planes[5][1][0] = board[0][Board.pit_captured_self]
+            main_planes[0][2][0] = board[0][Board.pit_captured_other]
 
         #print('board:')
         #print(board)

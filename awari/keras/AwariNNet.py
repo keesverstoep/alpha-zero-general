@@ -22,10 +22,10 @@ class Configuration:
             self.num_channels = num_channels  # used by nnet conv layers
 
     def __init__(self):
-        # self.nnet_args = self._NNetArgs(num_channels = 64, dropout = 0.3, lr = 0.01)
+        self.nnet_args = self._NNetArgs(num_channels = 64, dropout = 0.3, lr = 0.01)
         # NOTE: lr changed to 0.001 since we seem to be levelling off?
         #self.nnet_args = self._NNetArgs(num_channels = 64, dropout = 0.3, lr = 0.001)
-        self.nnet_args = self._NNetArgs(num_channels = 64, dropout = 0.3, lr = 0.0003)
+        # self.nnet_args = self._NNetArgs(num_channels = 64, dropout = 0.3, lr = 0.0003)
 
 CONFIG = Configuration()
 
