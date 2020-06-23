@@ -77,28 +77,39 @@ class AwariGame(Game):
             j = ind_y[pit]
             if j <= 2:
                 if (j == 1 and i >= 1 and i <= 4) or (j == 2 and (i == 1 or i == 4)):
-                    if nplanes > 1:
+                    if nplanes == 1:
+                        main_planes[i][j][0] = board[0][pit]
+                    else:
                         main_planes[i][j][1] = board[0][pit]
                         main_planes[i][j][3] = 1
                         main_planes[i][j][5] = (board[0][pit] < 3)
-                    if player_white or nplanes == 1:
-                        main_planes[i][j][0] = 1
+                        if player_white:
+                            main_planes[i][j][0] = 1
             else:
                 if (j == 4 and i >= 1 and i <= 4) or (j == 3 and (i == 1 or i == 4)):
-                    if nplanes > 1:
+                    if nplanes == 1:
+                        main_planes[i][j][0] = board[0][pit]
+                    else:
                         main_planes[i][j][2] = board[0][pit]
                         main_planes[i][j][4] = 1
                         main_planes[i][j][6] = (board[0][pit] < 3)
-                    if not player_white or nplanes == 1:
-                        main_planes[i][j][0] = 1
+                        if not player_white or nplanes == 1:
+                            main_planes[i][j][0] = 1
+
+        if nplanes == 1:
+            # indicate player for version layer1
+            if player_white:
+                main_planes[0][4][0] = 1
+            else:
+                main_planes[0][5][0] = 1
 
         # add own pits
-        if nplanes > 1:
-            main_planes[5][1][7] = board[0][Board.pit_captured_self]
-            main_planes[0][2][8] = board[0][Board.pit_captured_other]
-        else:
+        if nplanes == 1:
             main_planes[5][1][0] = board[0][Board.pit_captured_self]
             main_planes[0][2][0] = board[0][Board.pit_captured_other]
+        else:
+            main_planes[5][1][7] = board[0][Board.pit_captured_self]
+            main_planes[0][2][8] = board[0][Board.pit_captured_other]
 
         #print('board:')
         #print(board)
